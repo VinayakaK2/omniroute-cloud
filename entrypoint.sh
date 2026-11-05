@@ -12,6 +12,9 @@ export OMNIROUTE_PRESSURE_PSI_DISABLED="true"
 if [ -n "$HF_TOKEN" ] && [ -n "$HF_DATASET_ID" ]; then
     echo "[Entrypoint] Checking Hugging Face Dataset for existing database..."
     python3 /app/hf_sync.py download || echo "[Entrypoint] Initial download warning, proceeding with launch..."
+    # Ensure database file and data directory are writable by node user
+    chmod 666 /app/data/*.sqlite 2>/dev/null || true
+    chmod -R 777 /app/data 2>/dev/null || true
 
     # Periodic background database sync loop (invokes Python on demand and exits, 0 MB persistent RAM)
     run_periodic_sync() {
