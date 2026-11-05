@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --no-cache-dir --break-system-packages huggingface_hub
+    && pip3 install --no-cache-dir --break-system-packages --ignore-installed huggingface_hub
 
 # Hugging Face Spaces standard web port is 7860
 ENV PORT=20128
