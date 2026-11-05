@@ -21,15 +21,16 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
-# Copy automated sync scripts and entrypoint
+# Copy automated sync scripts, keepalive, entrypoint, and memory patch
 COPY hf_sync.py /app/hf_sync.py
 COPY pinger.py /app/pinger.py
+COPY patch_pressure.cjs /app/patch_pressure.cjs
 COPY entrypoint.sh /app/entrypoint.sh
 
 # Set ownership and executable permissions
 RUN chmod +x /app/entrypoint.sh /app/hf_sync.py /app/pinger.py \
     && mkdir -p /app/data \
-    && chown -R node:node /app/data /app/hf_sync.py /app/entrypoint.sh /app/pinger.py
+    && chown -R node:node /app/data /app/hf_sync.py /app/entrypoint.sh /app/pinger.py /app/patch_pressure.cjs
 
 USER node
 
