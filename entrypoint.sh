@@ -2,24 +2,48 @@
 set -eo pipefail
 
 echo "=========================================================="
-echo " Starting OmniRoute Cloud Runner"
+echo " Starting OmniRoute Cloud Runner (Memory Optimized)"
 echo "=========================================================="
+
+export NODE_OPTIONS="--max-old-space-size=256 ${NODE_OPTIONS:-}"
+export OMNIROUTE_PRESSURE_PSI_DISABLED="true"
 
 # 1. Download existing database from Hugging Face Dataset if configured
 if [ -n "$HF_TOKEN" ] && [ -n "$HF_DATASET_ID" ]; then
     echo "[Entrypoint] Checking Hugging Face Dataset for existing database..."
     python3 /app/hf_sync.py download || echo "[Entrypoint] Initial download warning, proceeding with launch..."
 
-    # Start the background sync loop (uploads backups periodically)
-    python3 /app/hf_sync.py loop &
+    # Periodic background database sync loop (invokes Python on demand and exits, 0 MB persistent RAM)
+    run_periodic_sync() {
+        while true; do
+            sleep 900
+            echo "[Storage] Periodic database backup starting..."
+            python3 /app/hf_sync.py upload || echo "[Storage] Periodic backup warning"
+        done
+    }
+    run_periodic_sync &
     SYNC_LOOP_PID=$!
-    echo "[Entrypoint] Background dataset sync loop started."
+    echo "[Entrypoint] Background dataset sync loop started (on-demand)."
 fi
 
-# 2. Start internal 9-minute self-pinger
-python3 /app/pinger.py &
+# 2. Start zero-RAM 9-minute keep-alive self-pinger using curl
+run_keepalive() {
+    local target_url="${SELF_PING_URL:-https://omniroute-ai-5hys.onrender.com/api/monitoring/health}"
+    local interval="${PING_INTERVAL_SECONDS:-540}"
+    echo "[KeepAlive] Zero-RAM keep-alive active for $target_url (every ${interval}s)"
+    sleep 35
+    while true; do
+        if curl -s -f -A "OmniRoute-KeepAlive/1.0" --max-time 15 "$target_url" > /dev/null 2>&1; then
+            echo "[KeepAlive] $(date '+%Y-%m-%d %H:%M:%S UTC') Ping to $target_url -> HTTP 200 OK"
+        else
+            echo "[KeepAlive] $(date '+%Y-%m-%d %H:%M:%S UTC') Ping attempt failed (will retry in ${interval}s)"
+        fi
+        sleep "$interval"
+    done
+}
+run_keepalive &
 PINGER_PID=$!
-echo "[Entrypoint] Keep-alive self-pinger started."
+echo "[Entrypoint] Zero-RAM keep-alive pinger started."
 
 # 3. Trap termination signals for a graceful final database upload
 cleanup() {
@@ -47,8 +71,8 @@ cleanup() {
 
 trap cleanup SIGTERM SIGINT
 
-# 4. Start OmniRoute Standalone Server
-echo "[Entrypoint] Launching OmniRoute server on port ${PORT:-20128}..."
+# 4. Start OmniRoute Standalone Server with memory optimization
+echo "[Entrypoint] Launching OmniRoute server on port ${PORT:-20128} with NODE_OPTIONS="$NODE_OPTIONS"..."
 node dev/run-standalone.mjs &
 APP_PID=$!
 
