@@ -5,14 +5,13 @@ echo "=========================================================="
 echo " Starting OmniRoute Cloud Runner (Memory Optimized)"
 echo "=========================================================="
 
-export NODE_OPTIONS="--max-old-space-size=256 ${NODE_OPTIONS:-}"
+export NODE_OPTIONS="--require /app/patch_pressure.cjs --max-old-space-size=256 ${NODE_OPTIONS:-}"
 export OMNIROUTE_PRESSURE_PSI_DISABLED="true"
 
 # 1. Download existing database from Hugging Face Dataset if configured
 if [ -n "$HF_TOKEN" ] && [ -n "$HF_DATASET_ID" ]; then
     echo "[Entrypoint] Checking Hugging Face Dataset for existing database..."
     python3 /app/hf_sync.py download || echo "[Entrypoint] Initial download warning, proceeding with launch..."
-    # Ensure database file and data directory are writable by node user
     chmod 666 /app/data/*.sqlite 2>/dev/null || true
     chmod -R 777 /app/data 2>/dev/null || true
 
@@ -74,7 +73,7 @@ cleanup() {
 
 trap cleanup SIGTERM SIGINT
 
-# 4. Start OmniRoute Standalone Server with memory optimization
+# 4. Start OmniRoute Standalone Server with memory patch
 echo "[Entrypoint] Launching OmniRoute server on port ${PORT:-20128} with NODE_OPTIONS="$NODE_OPTIONS"..."
 node dev/run-standalone.mjs &
 APP_PID=$!
