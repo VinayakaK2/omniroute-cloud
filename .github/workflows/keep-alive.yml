@@ -1,0 +1,16 @@
+name: Keep-Alive Ping
+
+on:
+  schedule:
+    # Runs every 10 minutes
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping OmniRoute Health Endpoint
+        run: |
+          echo "Pinging OmniRoute health..."
+          curl -s -f -m 30 "https://omniroute-ai-5hys.onrender.com/api/monitoring/health" || echo "Ping finished"

@@ -30,6 +30,9 @@ cleanup() {
         python3 /app/hf_sync.py upload || echo "[Entrypoint] Final sync failed."
     fi
 
+    if [ -n "$PINGER_PID" ]; then
+        kill "$PINGER_PID" 2>/dev/null || true
+    fi
     if [ -n "$SYNC_LOOP_PID" ]; then
         kill "$SYNC_LOOP_PID" 2>/dev/null || true
     fi
@@ -43,7 +46,20 @@ cleanup() {
 
 trap cleanup SIGTERM SIGINT
 
-# 3. Start OmniRoute Standalone Server
+
+# 3. Background Keep-Alive Self-Pinger (runs every 9 minutes to keep Render active)
+start_self_pinger() {
+    echo "[Entrypoint] Starting 9-minute self-ping keep-alive loop..."
+    while true; do
+        sleep 540
+        echo "[KeepAlive] Sending self-ping to prevent sleep..."
+        curl -s -f -m 20 "https://omniroute-ai-5hys.onrender.com/api/monitoring/health" >/dev/null 2>&1 || true
+    done
+}
+start_self_pinger &
+PINGER_PID=$!
+
+# 4. Start OmniRoute Standalone Server
 echo "[Entrypoint] Launching OmniRoute server on port ${PORT:-20128}..."
 node dev/run-standalone.mjs &
 APP_PID=$!
