@@ -17,7 +17,6 @@ BACKUP_PATH: str = "/tmp/storage_backup.sqlite"
 HF_TOKEN: Optional[str] = os.getenv("HF_TOKEN")
 DATASET_ID: Optional[str] = os.getenv("HF_DATASET_ID")  # Format: "username/omniroute-storage"
 
-# Lazy-loaded Hugging Face API client
 _api = None
 
 
@@ -76,7 +75,13 @@ def download_database() -> None:
 
         os.makedirs(DATA_DIR, exist_ok=True)
         shutil.copy2(downloaded_file, DB_PATH)
-        print(f"[HF Sync] Successfully restored database to {DB_PATH}", flush=True)
+        # CRITICAL: HF Hub cache files are marked 0444 (read-only).
+        # We must explicitly grant read-write permissions (0o666) for SQLite writes.
+        try:
+            os.chmod(DB_PATH, 0o666)
+        except OSError:
+            pass
+        print(f"[HF Sync] Successfully restored database to {DB_PATH} (read-write mode 0666)", flush=True)
 
     except EntryNotFoundError:
         print("[HF Sync] No previous database found in dataset. Starting with a fresh database.", flush=True)
@@ -95,14 +100,13 @@ def upload_database() -> None:
         return
 
     try:
-        # Use SQLite's online backup API to avoid database locks or corruption
+        # Use SQLite online backup API to avoid locks or corruption
         src_conn = sqlite3.connect(DB_PATH)
         dst_conn = sqlite3.connect(BACKUP_PATH)
         src_conn.backup(dst_conn)
         dst_conn.close()
         src_conn.close()
 
-        # Upload hot backup to the private Hugging Face Dataset
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
         api.upload_file(
             path_or_fileobj=BACKUP_PATH,
@@ -125,7 +129,6 @@ def upload_database() -> None:
 
 def run_sync_loop() -> None:
     """Background loop that periodically uploads database backups to the HF dataset."""
-    # Default sync interval is 15 minutes (900 seconds)
     interval_sec = int(os.getenv("HF_SYNC_INTERVAL_SEC", "900"))
     print(f"[HF Sync Loop] Periodic sync started (runs every {interval_sec} seconds).", flush=True)
 
@@ -145,4 +148,3 @@ if __name__ == "__main__":
     else:
         print(f"Unknown action: {action}. Use 'download', 'upload', or 'loop'.", file=sys.stderr)
         sys.exit(1)
-
