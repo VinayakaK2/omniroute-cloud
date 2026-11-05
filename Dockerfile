@@ -23,12 +23,13 @@ WORKDIR /app
 
 # Copy automated sync scripts and entrypoint
 COPY hf_sync.py /app/hf_sync.py
+COPY pinger.py /app/pinger.py
 COPY entrypoint.sh /app/entrypoint.sh
 
 # Set ownership and executable permissions for the built-in node user (UID 1000)
-RUN chmod +x /app/entrypoint.sh /app/hf_sync.py \
+RUN chmod +x /app/entrypoint.sh /app/hf_sync.py /app/pinger.py \
     && mkdir -p /app/data \
-    && chown -R node:node /app/data /app/hf_sync.py /app/entrypoint.sh
+    && chown -R node:node /app/data /app/hf_sync.py /app/entrypoint.sh /app/pinger.py
 
 # Hugging Face Spaces expects non-root execution (UID 1000 matches 'node')
 USER node
