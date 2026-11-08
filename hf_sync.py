@@ -89,14 +89,38 @@ def download_database() -> None:
         print(f"[HF Sync] Download skipped or encountered an error: {err}", flush=True)
 
 
+LAST_HASH_PATH: str = "/tmp/last_db_hash.txt"
+
+def get_file_hash(path: str) -> str:
+    """Calculate MD5 hash of a file for change detection."""
+    import hashlib
+    hasher = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
 def upload_database() -> None:
     """Create a safe hot-backup of storage.sqlite and upload to the private HF dataset."""
-    api = get_hf_api()
-    if not api or not DATASET_ID:
-        return
-
     if not os.path.exists(DB_PATH):
         print("[HF Sync] storage.sqlite does not exist yet. Skipping backup.", flush=True)
+        return
+
+    # Check if database has changed since last backup to avoid redundant RAM and network usage
+    try:
+        current_hash = get_file_hash(DB_PATH)
+        if os.path.exists(LAST_HASH_PATH):
+            with open(LAST_HASH_PATH, "r") as f:
+                last_hash = f.read().strip()
+            if current_hash == last_hash:
+                print("[HF Sync] Database unchanged since last backup. Skipping upload.", flush=True)
+                return
+    except Exception as hash_err:
+        print(f"[HF Sync] Hash check warning: {hash_err}", flush=True)
+        current_hash = None
+
+    api = get_hf_api()
+    if not api or not DATASET_ID:
         return
 
     try:
@@ -115,6 +139,12 @@ def upload_database() -> None:
             repo_type="dataset",
             commit_message=f"Automated OmniRoute backup [{timestamp}]",
         )
+        if current_hash:
+            try:
+                with open(LAST_HASH_PATH, "w") as f:
+                    f.write(current_hash)
+            except Exception:
+                pass
         print(f"[HF Sync] Successfully backed up database to dataset '{DATASET_ID}' at {timestamp}", flush=True)
 
     except Exception as err:

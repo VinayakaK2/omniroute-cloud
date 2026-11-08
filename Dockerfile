@@ -18,6 +18,8 @@ ENV PORT=20128
 ENV HOSTNAME=0.0.0.0
 ENV DATA_DIR=/app/data
 ENV NODE_ENV=production
+ENV OMNIROUTE_MEMORY_MB=180
+ENV NODE_OPTIONS="--require /app/patch_pressure.cjs --max-old-space-size=180"
 
 WORKDIR /app
 

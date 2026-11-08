@@ -5,7 +5,8 @@ echo "=========================================================="
 echo " Starting OmniRoute Cloud Runner (Memory Optimized)"
 echo "=========================================================="
 
-export NODE_OPTIONS="--require /app/patch_pressure.cjs --max-old-space-size=256 ${NODE_OPTIONS:-}"
+export OMNIROUTE_MEMORY_MB=180
+export NODE_OPTIONS="--require /app/patch_pressure.cjs --max-old-space-size=180 ${NODE_OPTIONS:-}"
 export OMNIROUTE_PRESSURE_PSI_DISABLED="true"
 
 # 1. Download existing database from Hugging Face Dataset if configured
@@ -18,7 +19,7 @@ if [ -n "$HF_TOKEN" ] && [ -n "$HF_DATASET_ID" ]; then
     # Periodic background database sync loop (invokes Python on demand and exits, 0 MB persistent RAM)
     run_periodic_sync() {
         while true; do
-            sleep 900
+            sleep 1800
             echo "[Storage] Periodic database backup starting..."
             python3 /app/hf_sync.py upload || echo "[Storage] Periodic backup warning"
         done
@@ -28,10 +29,10 @@ if [ -n "$HF_TOKEN" ] && [ -n "$HF_DATASET_ID" ]; then
     echo "[Entrypoint] Background dataset sync loop started (on-demand)."
 fi
 
-# 2. Start zero-RAM 9-minute keep-alive self-pinger using curl
+# 2. Start zero-RAM 5-minute keep-alive self-pinger using curl
 run_keepalive() {
     local target_url="${SELF_PING_URL:-https://omniroute-ai-5hys.onrender.com/api/monitoring/health}"
-    local interval="${PING_INTERVAL_SECONDS:-540}"
+    local interval="${PING_INTERVAL_SECONDS:-300}"
     echo "[KeepAlive] Zero-RAM keep-alive active for $target_url (every ${interval}s)"
     sleep 35
     while true; do
